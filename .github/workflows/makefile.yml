@@ -13,24 +13,40 @@ on:
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
 
+    container:
+      image: fedora:41
+
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v2
+      - name: Install dependencies
+        run: |
+          dnf install -y git cmake gcc gcc-c++ make ruby ruby-devel rpm-build rubygems
+          gem install --no-document fpm
 
-    - name: Set up CMake
-      uses: actions/setup-cmake@v2
+      - name: Checkout cJSON
+        run: |
+          git clone https://github.com/DaveGamble/cJSON.git /app
 
-    - name: Build cJSON
-      run: |
-        mkdir build
-        cd build
-        cmake ..
-        make
+      - name: Build cJSON
+        working-directory: /app
+        run: |
+          mkdir build && cd build
+          cmake ..
+          make
+          make DESTDIR=/tmp/install install
 
-    - name: Run tests
-      run: |
-        cd build
-        make test
+      - name: Create RPM with fpm
+        working-directory: /app
+        run: |
+          fpm -s dir -t rpm \
+            -n mycjson \
+            -v 1.7.15 \
+            -C /tmp/install \
+            -p /app/mycjson.rpm
+
+      - name: Upload RPM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mycjson-rpm
+          path: /app/mycjson.rpm
